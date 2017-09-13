@@ -214,6 +214,7 @@ class USRP_UHD_i : public USRP_UHD_base
         int serviceFunction(){return FINISH;} // unused
         int serviceFunctionReceive();
         int serviceFunctionTransmit();
+        int serviceFunctionGPS();
         void start() throw (CF::Resource::StartError, CORBA::SystemException);
         void stop() throw (CF::Resource::StopError, CORBA::SystemException);
     protected:
@@ -267,8 +268,10 @@ class USRP_UHD_i : public USRP_UHD_base
         // serviceFunctionTransmit thread
         MultiProcessThread<USRP_UHD_i> *receive_service_thread;
         MultiProcessThread<USRP_UHD_i> *transmit_service_thread;
+        MultiProcessThread<USRP_UHD_i> *gps_service_thread;
         boost::mutex receive_service_thread_lock;
         boost::mutex transmit_service_thread_lock;
+        boost::mutex gps_service_thread_lock;
         template <class IN_PORT_TYPE> bool transmitHelper(IN_PORT_TYPE *dataIn);
 
         // Ensures access to properties is thread safe

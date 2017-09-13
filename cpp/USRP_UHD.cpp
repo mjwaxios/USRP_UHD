@@ -290,13 +290,21 @@ int USRP_UHD_i::serviceFunctionReceive(){
 }
 
 /** TRANSMIT THREAD **/
-int USRP_UHD_i::serviceFunctionTransmit(){
+int USRP_UHD_i::serviceFunctionTransmit() {
     bool ret = transmitHelper(dataShortTX_in);
     ret = ret || transmitHelper(dataFloatTX_in);
     if(ret)
         return NORMAL;
     return NOOP;
+}
 
+/** GPS THREAD **/
+int USRP_UHD_i::serviceFunctionGPS() {
+    static int i;
+    frontend::GPSInfo info;
+    info.datumID = i++;
+    GPS_out->gps_info(info);
+    return NORMAL;
 }
 
 void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError) {
@@ -325,7 +333,14 @@ void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError
                 transmit_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionTransmit, 0.001);
                 transmit_service_thread->start();
             }
-        }
+        }   
+        {   
+//            exclusive_lock lock(gps_service_thread_lock);
+//            if (gps_service_thread == NULL) {
+//                gps_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionGPS, 1.0);
+//                gps_service_thread->start();
+//            }
+        }  
 
     } catch (...) {
         stop();
