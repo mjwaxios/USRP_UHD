@@ -300,11 +300,18 @@ int USRP_UHD_i::serviceFunctionTransmit() {
 
 /** GPS THREAD **/
 int USRP_UHD_i::serviceFunctionGPS() {
-    static int i;
-    frontend::GPSInfo info;
-    info.datumID = i++;
-    GPS_out->gps_info(info);
-    return NORMAL;
+//    if (usrp_device_ptr.get() == NULL)
+//        return NOOP;
+
+    static int i = 0;
+    frontend::GpsTimePos pos;
+    pos.position.valid = true;
+    pos.position.lat = i++;
+    pos.position.lon = i++;
+    pos.position.alt = i++;
+    GPS_out->gps_time_pos(pos);
+
+    return NOOP;    // Do a NOOP so we delay until the next time
 }
 
 void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError) {
@@ -313,14 +320,24 @@ void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError
     dataShortTX_in->unblock();
     dataFloatTX_in->unblock();
 
+    LOG_WARN(USRP_UHD_i,"Starting UHD");
+
     // Create threads
     try {
+
+        {   
+            exclusive_lock lock(gps_service_thread_lock);
+            if (gps_service_thread == NULL) {
+                LOG_WARN(USRP_UHD_i,"Starting GPS Thread");
+                gps_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionGPS, 1.0);
+                gps_service_thread->start();
+            }
+        }  
 
         {
             exclusive_lock lock(receive_service_thread_lock);
             if (receive_service_thread == NULL) {
-                //dataShortTX_in->unblock();
-                //dataFloatTX_in->unblock();
+                LOG_WARN(USRP_UHD_i,"Starting Receive Thread");
                 receive_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionReceive, 0.001);
                 receive_service_thread->start();
             }
@@ -328,19 +345,11 @@ void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError
         {
             exclusive_lock lock(transmit_service_thread_lock);
             if (transmit_service_thread == NULL) {
-                //dataShortTX_in->unblock();
-                //dataFloatTX_in->unblock();
+                LOG_WARN(USRP_UHD_i,"Starting Transmit Thread");
                 transmit_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionTransmit, 0.001);
                 transmit_service_thread->start();
             }
         }   
-        {   
-//            exclusive_lock lock(gps_service_thread_lock);
-//            if (gps_service_thread == NULL) {
-//                gps_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionGPS, 1.0);
-//                gps_service_thread->start();
-//            }
-        }  
 
     } catch (...) {
         stop();
@@ -356,6 +365,20 @@ void USRP_UHD_i::stop() throw (CORBA::SystemException, CF::Resource::StopError) 
     LOG_TRACE(USRP_UHD_i,__PRETTY_FUNCTION__);
     dataShortTX_in->block();
     dataShortTX_in->block();
+
+    {
+        exclusive_lock lock(gps_service_thread_lock);
+        // release the child thread (if it exists)
+        if (gps_service_thread != 0) {
+            //TODO - force EOS/disable for each allocated tuner? or
+            if (!gps_service_thread->release(2)) {
+                throw CF::Resource::StopError(CF::CF_NOTSET,"GPS processing thread did not die");
+            }
+            delete gps_service_thread;
+            gps_service_thread = 0;
+        }
+    }
+
 
     {
         exclusive_lock lock(receive_service_thread_lock);
@@ -403,6 +426,7 @@ void USRP_UHD_i::stop() throw (CORBA::SystemException, CF::Resource::StopError) 
 ***********************************************************************************/
 void USRP_UHD_i::construct() {
     LOG_TRACE(USRP_UHD_i,__PRETTY_FUNCTION__);
+    gps_service_thread = NULL;
     receive_service_thread = NULL;
     transmit_service_thread = NULL;
 
