@@ -116,6 +116,8 @@ class USRP_UHD_base : public frontend::FrontendTunerDevice<frontend_tuner_status
         /// Port: dataSDDS_out
         bulkio::OutSDDSPort *dataSDDS_out;
 
+        frontend::OutGPSPort *GPS_out;
+
         std::map<std::string, std::string> listeners;
 
         virtual void setNumChannels(size_t num);

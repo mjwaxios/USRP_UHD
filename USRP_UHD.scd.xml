@@ -31,6 +31,10 @@ with this program.  If not, see http://www.gnu.org/licenses/.
     <supportsinterface repid="IDL:CF/PropertySet:1.0" supportsname="PropertySet"/>
     <supportsinterface repid="IDL:CF/TestableObject:1.0" supportsname="TestableObject"/>
     <ports>
+      <uses repid="IDL:FRONTEND/GPS:1.0" usesname="GPS_out">
+        <description>Internal USRP GPSDO data output.</description>
+        <porttype type="data"/>
+      </uses>
       <provides repid="IDL:FRONTEND/RFInfo:1.0" providesname="RFInfo_in">
         <description>First RF RX connector on USRP. See `device_antenna_mapping` Property to see mapping of which antenna each RFInfo port represents.</description>
         <porttype type="data"/>

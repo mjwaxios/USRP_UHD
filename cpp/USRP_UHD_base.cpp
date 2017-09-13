@@ -59,6 +59,8 @@ USRP_UHD_base::USRP_UHD_base(char *devMgr_ior, char *id, char *lbl, char *sftwrP
 
 USRP_UHD_base::~USRP_UHD_base()
 {
+    delete GPS_out;
+    GPS_out = 0;
     delete RFInfo_in;
     RFInfo_in = 0;
     delete RFInfo_in2;
@@ -86,6 +88,9 @@ USRP_UHD_base::~USRP_UHD_base()
 void USRP_UHD_base::construct()
 {
     loadProperties();
+
+    GPS_out = new frontend::OutGPSPort("GPS_out");
+    addPort("GPS_out", "Output from USRP internal GPSDO.", GPS_out);
 
     RFInfo_in = new frontend::InRFInfoPort("RFInfo_in", this);
     addPort("RFInfo_in", "First RF RX connector on USRP. See `device_antenna_mapping` Property to see mapping of which antenna each RFInfo port represents.", RFInfo_in);
