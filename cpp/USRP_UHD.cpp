@@ -303,11 +303,18 @@ int USRP_UHD_i::serviceFunctionGPS() {
     if (usrp_device_ptr.get() == NULL)
         return NOOP;
 
+    static int NumofLoops = 9;  // Counter for every X number of Loops
+
     try {
       uhd::sensor_value_t locked = usrp_device_ptr->get_mboard_sensor("gps_locked");    
       if(locked.to_bool()) {
         LOG_TRACE(USRP_UHD_i, "GPSDO Locked");
         if (USRPTimeSynced) {   // Update Pos
+          uhd::sensor_value_t gga_string = usrp_device_ptr->get_mboard_sensor("gps_gpgga");
+          uhd::sensor_value_t rmc_string = usrp_device_ptr->get_mboard_sensor("gps_gprmc");
+          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % gga_string.to_pp_string());
+          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % rmc_string.to_pp_string());
+
           frontend::GpsTimePos pos;
           pos.position.valid = true;
           pos.position.lat = 123;
@@ -338,12 +345,16 @@ int USRP_UHD_i::serviceFunctionGPS() {
         LOG_WARN(USRP_UHD_i, "GPSDO Unlocked");
         USRPTimeSynced = false;
       }
+      // Ever so many loops send a GPSInfo
+      if ((++NumofLoops % 10) == 0) {
+        NumofLoops = 0;
+        LOG_WARN(USRP_UHD_i, "GPSINFO blah blah blah");
+      }
+
     } catch (...) {
       LOG_ERROR(USRP_UHD_i, "gps_locked sensor not found.");
       return NOOP;
     }
-
-    // Add in every 10 seconds send a GPSInfo 
 
     return NOOP;    // Do a NOOP so we delay until the next time
 }
