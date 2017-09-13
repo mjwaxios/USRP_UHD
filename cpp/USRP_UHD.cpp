@@ -300,16 +300,50 @@ int USRP_UHD_i::serviceFunctionTransmit() {
 
 /** GPS THREAD **/
 int USRP_UHD_i::serviceFunctionGPS() {
-//    if (usrp_device_ptr.get() == NULL)
-//        return NOOP;
+    if (usrp_device_ptr.get() == NULL)
+        return NOOP;
 
-    static int i = 0;
-    frontend::GpsTimePos pos;
-    pos.position.valid = true;
-    pos.position.lat = i++;
-    pos.position.lon = i++;
-    pos.position.alt = i++;
-    GPS_out->gps_time_pos(pos);
+    try {
+      uhd::sensor_value_t locked = usrp_device_ptr->get_mboard_sensor("gps_locked");    
+      if(locked.to_bool()) {
+        LOG_TRACE(USRP_UHD_i, "GPSDO Locked");
+        if (USRPTimeSynced) {   // Update Pos
+          frontend::GpsTimePos pos;
+          pos.position.valid = true;
+          pos.position.lat = 123;
+          pos.position.lon = 123;
+          pos.position.alt = 123;
+          GPS_out->gps_time_pos(pos);
+        } else {   // Sync the Time
+          LOG_TRACE(USRP_UHD_i,"Syncing USRP FPGA time With GPS");
+          uhd::sensor_value_t reflocked = usrp_device_ptr->get_mboard_sensor("ref_locked");    
+          if (!reflocked.to_bool()) {
+            LOG_ERROR(USRP_UHD_i, "10 MHz Reference Unlocked");            
+            return NOOP;
+          }
+          uhd::sensor_value_t gpstime = usrp_device_ptr->get_mboard_sensor("gps_time");
+          uhd::time_spec_t gps_time = uhd::time_spec_t(time_t(gpstime.to_int()));
+          usrp_device_ptr->set_time_next_pps(gps_time+1.0, 0);       
+          usleep(2000000); // Wait Two Seconds, OK here as long as we are in a thread
+          uhd::sensor_value_t gpstime2 = usrp_device_ptr->get_mboard_sensor("gps_time");
+          uhd::time_spec_t time_last_pps = usrp_device_ptr->get_time_last_pps();
+          if (gpstime2.to_int() == time_last_pps.to_ticks(1.0)) {
+            LOG_WARN(USRP_UHD_i,"USRP and GPS Time are Synced and 10 MHz Reference is Locked");
+            USRPTimeSynced = true;
+          } else {
+            LOG_ERROR(USRP_UHD_i,"Failed to Sync USRP FPGA time With GPS. " << boost::format("%s") % gpstime2.to_pp_string() << boost::format("UHDTime: %.0f") % (time_last_pps.get_real_secs()));
+          }
+        }
+      } else {  // Locked?
+        LOG_WARN(USRP_UHD_i, "GPSDO Unlocked");
+        USRPTimeSynced = false;
+      }
+    } catch (...) {
+      LOG_ERROR(USRP_UHD_i, "gps_locked sensor not found.");
+      return NOOP;
+    }
+
+    // Add in every 10 seconds send a GPSInfo 
 
     return NOOP;    // Do a NOOP so we delay until the next time
 }
@@ -320,15 +354,21 @@ void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError
     dataShortTX_in->unblock();
     dataFloatTX_in->unblock();
 
-    LOG_WARN(USRP_UHD_i,"Starting UHD");
+    LOG_DEBUG(USRP_UHD_i,"Starting UHD");
 
     // Create threads
     try {
 
         {   
             exclusive_lock lock(gps_service_thread_lock);
+            USRPTimeSynced = false;   // Force re-sync of time after starting
+            // SETUP USRP to use the GPSDO
+            LOG_TRACE(USRP_UHD_i, "Setting Clock to GPSDO");
+            usrp_device_ptr->set_clock_source("gpsdo");
+            usrp_device_ptr->set_time_source("gpsdo");
+
             if (gps_service_thread == NULL) {
-                LOG_WARN(USRP_UHD_i,"Starting GPS Thread");
+                LOG_DEBUG(USRP_UHD_i,"Starting GPS Thread");
                 gps_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionGPS, 1.0);
                 gps_service_thread->start();
             }
@@ -337,7 +377,7 @@ void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError
         {
             exclusive_lock lock(receive_service_thread_lock);
             if (receive_service_thread == NULL) {
-                LOG_WARN(USRP_UHD_i,"Starting Receive Thread");
+                LOG_DEBUG(USRP_UHD_i,"Starting Receive Thread");
                 receive_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionReceive, 0.001);
                 receive_service_thread->start();
             }
@@ -345,7 +385,7 @@ void USRP_UHD_i::start() throw (CORBA::SystemException, CF::Resource::StartError
         {
             exclusive_lock lock(transmit_service_thread_lock);
             if (transmit_service_thread == NULL) {
-                LOG_WARN(USRP_UHD_i,"Starting Transmit Thread");
+                LOG_DEBUG(USRP_UHD_i,"Starting Transmit Thread");
                 transmit_service_thread = new MultiProcessThread<USRP_UHD_i> (this, &USRP_UHD_i::serviceFunctionTransmit, 0.001);
                 transmit_service_thread->start();
             }

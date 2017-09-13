@@ -334,6 +334,8 @@ class USRP_UHD_i : public USRP_UHD_base
         uhd::usrp::multi_usrp::sptr usrp_device_ptr;
         uhd::device_addr_t usrp_device_addr;
 
+        bool USRPTimeSynced;
+
     protected:
         void construct();
 
