@@ -24,3 +24,4 @@ redhawk_SOURCES_auto += sdds/socketUtils/unicast.cpp
 redhawk_SOURCES_auto += sdds/socketUtils/unicast.h
 redhawk_SOURCES_auto += struct_props.h
 redhawk_SOURCES_auto += template_impl.cpp
+redhawk_INCLUDES_auto = -I/usr/local/redhawk/core/include/redhawk

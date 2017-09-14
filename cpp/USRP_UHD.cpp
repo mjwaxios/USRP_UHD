@@ -329,8 +329,8 @@ int USRP_UHD_i::serviceFunctionGPS() {
             return NOOP;
           }
           uhd::sensor_value_t gpstime = usrp_device_ptr->get_mboard_sensor("gps_time");
-          uhd::time_spec_t gps_time = uhd::time_spec_t(time_t(gpstime.to_int()));
-          usrp_device_ptr->set_time_next_pps(gps_time+1.0, 0);       
+          uhd::time_spec_t gps_time = uhd::time_spec_t(time_t(gpstime.to_int() + 1.0));
+          usrp_device_ptr->set_time_next_pps(gps_time, 0);
           usleep(2000000); // Wait Two Seconds, OK here as long as we are in a thread
           uhd::sensor_value_t gpstime2 = usrp_device_ptr->get_mboard_sensor("gps_time");
           uhd::time_spec_t time_last_pps = usrp_device_ptr->get_time_last_pps();
@@ -349,6 +349,8 @@ int USRP_UHD_i::serviceFunctionGPS() {
       if ((++NumofLoops % 10) == 0) {
         NumofLoops = 0;
         LOG_WARN(USRP_UHD_i, "GPSINFO blah blah blah");
+        frontend::GPSInfo info;
+        GPS_out->gps_info(info);
       }
 
     } catch (...) {

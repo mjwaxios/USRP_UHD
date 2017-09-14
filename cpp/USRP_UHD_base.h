@@ -1,22 +1,3 @@
-/*
- * This file is protected by Copyright. Please refer to the COPYRIGHT file
- * distributed with this source distribution.
- *
- * This file is part of REDHAWK rh.USRP_UHD.
- *
- * REDHAWK rh.USRP_UHD is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version.
- *
- * REDHAWK rh.USRP_UHD is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
- * for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program.  If not, see http://www.gnu.org/licenses/.
- */
 #ifndef USRP_UHD_BASE_IMPL_BASE_H
 #define USRP_UHD_BASE_IMPL_BASE_H
 
@@ -107,6 +88,8 @@ class USRP_UHD_base : public frontend::FrontendTunerDevice<frontend_tuner_status
         bulkio::InShortPort *dataShortTX_in;
         /// Port: dataFloatTX_in
         bulkio::InFloatPort *dataFloatTX_in;
+        /// Port: GPS_out
+        frontend::OutGPSPort *GPS_out;
         /// Port: dataShort_out
         bulkio::OutShortPort *dataShort_out;
         /// Port: RFInfoTX_out
@@ -115,8 +98,6 @@ class USRP_UHD_base : public frontend::FrontendTunerDevice<frontend_tuner_status
         frontend::OutRFInfoPort *RFInfoTX_out2;
         /// Port: dataSDDS_out
         bulkio::OutSDDSPort *dataSDDS_out;
-
-        frontend::OutGPSPort *GPS_out;
 
         std::map<std::string, std::string> listeners;
 

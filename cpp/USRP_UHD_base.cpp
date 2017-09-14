@@ -1,22 +1,3 @@
-/*
- * This file is protected by Copyright. Please refer to the COPYRIGHT file
- * distributed with this source distribution.
- *
- * This file is part of REDHAWK rh.USRP_UHD.
- *
- * REDHAWK rh.USRP_UHD is free software: you can redistribute it and/or modify it
- * under the terms of the GNU Lesser General Public License as published by the
- * Free Software Foundation, either version 3 of the License, or (at your
- * option) any later version.
- *
- * REDHAWK rh.USRP_UHD is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public License
- * for more details.
- *
- * You should have received a copy of the GNU Lesser General Public License
- * along with this program.  If not, see http://www.gnu.org/licenses/.
- */
 #include "USRP_UHD_base.h"
 
 /*******************************************************************************************
@@ -59,8 +40,6 @@ USRP_UHD_base::USRP_UHD_base(char *devMgr_ior, char *id, char *lbl, char *sftwrP
 
 USRP_UHD_base::~USRP_UHD_base()
 {
-    delete GPS_out;
-    GPS_out = 0;
     delete RFInfo_in;
     RFInfo_in = 0;
     delete RFInfo_in2;
@@ -75,6 +54,8 @@ USRP_UHD_base::~USRP_UHD_base()
     dataShortTX_in = 0;
     delete dataFloatTX_in;
     dataFloatTX_in = 0;
+    delete GPS_out;
+    GPS_out = 0;
     delete dataShort_out;
     dataShort_out = 0;
     delete RFInfoTX_out;
@@ -88,9 +69,6 @@ USRP_UHD_base::~USRP_UHD_base()
 void USRP_UHD_base::construct()
 {
     loadProperties();
-
-    GPS_out = new frontend::OutGPSPort("GPS_out");
-    addPort("GPS_out", "Output from USRP internal GPSDO.", GPS_out);
 
     RFInfo_in = new frontend::InRFInfoPort("RFInfo_in", this);
     addPort("RFInfo_in", "First RF RX connector on USRP. See `device_antenna_mapping` Property to see mapping of which antenna each RFInfo port represents.", RFInfo_in);
@@ -106,6 +84,8 @@ void USRP_UHD_base::construct()
     addPort("dataShortTX_in", dataShortTX_in);
     dataFloatTX_in = new bulkio::InFloatPort("dataFloatTX_in");
     addPort("dataFloatTX_in", dataFloatTX_in);
+    GPS_out = new frontend::OutGPSPort("GPS_out");
+    addPort("GPS_out", "Internal USRP GPSDO data output.", GPS_out);
     dataShort_out = new bulkio::OutShortPort("dataShort_out");
     addPort("dataShort_out", dataShort_out);
     RFInfoTX_out = new frontend::OutRFInfoPort("RFInfoTX_out");
