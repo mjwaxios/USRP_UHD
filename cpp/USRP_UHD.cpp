@@ -317,9 +317,9 @@ int USRP_UHD_i::serviceFunctionGPS() {
 
           frontend::GpsTimePos pos;
           pos.position.valid = true;
-          pos.position.lat = 123;
-          pos.position.lon = 123;
-          pos.position.alt = 123;
+          pos.position.lat = 38.9819783;
+          pos.position.lon = -77.438543;
+          pos.position.alt = 90.5;
           GPS_out->gps_time_pos(pos);
         } else {   // Sync the Time
           LOG_TRACE(USRP_UHD_i,"Syncing USRP FPGA time With GPS");
