@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE softpkg PUBLIC "-//JTRS//DTD SCA V2.2.2 SPD//EN" "softpkg.dtd">
-<softpkg id="DCE:3dd4a6fc-1a35-11e5-9dbb-3417ebc4aab5" name="rh.USRP_UHD" type="2.0.1" version="5.0.0">
+<softpkg id="DCE:3dd4a6fc-1a35-11e5-9dbb-3417ebc4aab5" name="rh.USRP_UHD" type="2.0.1" version="6.0.0">
   <title></title>
   <author>
     <name>null</name>
