@@ -27,6 +27,7 @@
 **************************************************************************/
 
 #include "USRP_UHD.h"
+#include "nmea/nmeaparser.h"
 
 PREPARE_LOGGING(USRP_UHD_i)
 
@@ -256,6 +257,7 @@ int USRP_UHD_i::serviceFunctionReceive(){
                 BULKIO::StreamSRI sri = create(stream_id, frontend_tuner_status[tuner_id]);
                 sri.mode = 1; // complex
                 //printSRI(&sri,"USRP_UHD_i::serviceFunctionReceive SRI"); // DEBUG
+                updateSriKeywords(&sri);
                 dataShort_out->pushSRI(sri);
                 dataSDDS_out->pushSRI(sri);
                 usrp_tuners[tuner_id].update_sri = false;
@@ -312,14 +314,41 @@ int USRP_UHD_i::serviceFunctionGPS() {
         if (USRPTimeSynced) {   // Update Pos
           uhd::sensor_value_t gga_string = usrp_device_ptr->get_mboard_sensor("gps_gpgga");
           uhd::sensor_value_t rmc_string = usrp_device_ptr->get_mboard_sensor("gps_gprmc");
-          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % gga_string.to_pp_string());
-          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % rmc_string.to_pp_string());
+          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % gga_string.value);
+          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % rmc_string.value);
+
+          NMEA_PARSER nmeaParser(gga_string.value, rmc_string.value);
 
           frontend::GpsTimePos pos;
           pos.position.valid = true;
+          /*
           pos.position.lat = 38.9819783;
           pos.position.lon = -77.438543;
           pos.position.alt = 90.5;
+          */
+          pos.position.lat = nmeaParser.latitude;
+          pos.position.lon = nmeaParser.longitude;
+          pos.position.alt = nmeaParser.altitude;
+          std::ostringstream s;
+          s << nmeaParser.latitude;
+          sriKeywords.feedLat = s.str();
+          s.clear();
+          s.str("");
+          s << nmeaParser.longitude;
+          sriKeywords.feedLon = s.str();
+          s.clear();
+          s.str("");
+          s << nmeaParser.altitude;
+          sriKeywords.feedAlt = s.str();
+          s.clear();
+          s.str("");
+
+          LOG_WARN(USRP_UHD_i, "NEMA: Latitude: " <<boost::format("%s") % nmeaParser.latitude);
+          LOG_WARN(USRP_UHD_i, "NEMA: Longitude: " <<boost::format("%s") % nmeaParser.longitude);
+          LOG_WARN(USRP_UHD_i, "NEMA: Altitude: " <<boost::format("%s") % nmeaParser.altitude);
+          LOG_WARN(USRP_UHD_i, "NEMA: Date: " <<boost::format("%s") % nmeaParser.date);
+          LOG_WARN(USRP_UHD_i, "NEMA: UTC: " <<boost::format("%s") % nmeaParser.UTC);
+
           GPS_out->gps_time_pos(pos);
         } else {   // Sync the Time
           LOG_TRACE(USRP_UHD_i,"Syncing USRP FPGA time With GPS");
@@ -820,6 +849,7 @@ bool USRP_UHD_i::deviceDeleteTuning(frontend_tuner_status_struct_struct &fts, si
     sri.mode = 1; // complex
     //printSRI(&sri,"USRP_UHD_i::deviceDeleteTuning SRI"); // DEBUG
     updateSriTimes(&sri, usrp_tuners[tuner_id].time_up.twsec, usrp_tuners[tuner_id].time_down.twsec, frontend::J1970);
+    updateSriKeywords(&sri);
     dataShort_out->pushSRI(sri);
     dataSDDS_out->pushSRI(sri);
     usrp_tuners[tuner_id].update_sri = false;
@@ -1168,6 +1198,25 @@ double USRP_UHD_i::optimizeBandwidth(const double& req_bw, const size_t tuner_id
 
     LOG_DEBUG(USRP_UHD_i,"optimizeBandwidth|could not optimize bw, returning req_bw (" << req_bw << ")");
     return req_bw;
+}
+
+void USRP_UHD_i::updateSriKeywords(BULKIO::StreamSRI *sri)	{
+	addModifyKeyword<std::string > (sri, "PATHDELAY", sriKeywords.pathDelay);
+
+	addModifyKeyword<std::string > (sri, "PATH", "NONE");
+	addModifyKeyword<std::string > (sri, "ANTENNA", "NONE");
+	addModifyKeyword<std::string > (sri, "USE_SV_KEYWORDS", "1");
+
+	addModifyKeyword<std::string > (sri, "SBT", sriKeywords.sbt);
+	addModifyKeyword<std::string > (sri, "FEED", sriKeywords.feed);
+	addModifyKeyword<std::string > (sri, "MISSION", sriKeywords.mission);
+	addModifyKeyword<std::string > (sri, "ANTENNANAME", sriKeywords.antennaName);
+	addModifyKeyword<std::string > (sri, "RECEIVER", sriKeywords.receiver);
+	addModifyKeyword<std::string > (sri, "SYSTEM_TOA_SIGMA", sriKeywords.sysToaSigma);
+	addModifyKeyword<std::string > (sri, "SYSTEM_FOA_SIGMA", sriKeywords.sysFoaSigma);
+	addModifyKeyword<std::string > (sri, "FEED_LAT", sriKeywords.feedLat);
+	addModifyKeyword<std::string > (sri, "FEED_LON", sriKeywords.feedLon);
+	addModifyKeyword<std::string > (sri, "FEED_ALT", sriKeywords.feedAlt);
 }
 
 void USRP_UHD_i::updateSriTimes(BULKIO::StreamSRI *sri, double timeUp, double timeDown, frontend::timeTypes timeType) {
@@ -1797,6 +1846,7 @@ bool USRP_UHD_i::usrpEnable(size_t tuner_id){
             BULKIO::StreamSRI sri = create(stream_id, frontend_tuner_status[tuner_id]);
             sri.mode = 1; // complex
             //printSRI(&sri,"USRP_UHD_i::usrpEnable SRI"); // DEBUG
+            updateSriKeywords(&sri);
             dataShort_out->pushSRI(sri);
             dataSDDS_out->pushSRI(sri);
             usrp_tuners[tuner_id].update_sri = false;

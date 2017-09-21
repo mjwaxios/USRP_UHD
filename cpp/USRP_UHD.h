@@ -90,6 +90,7 @@ public:
 
     void updateDelay(float _delay) { _udelay = (__useconds_t)(_delay * 1000000); };
 
+
 private:
     boost::thread *_mythread;
     bool _thread_running;
@@ -314,6 +315,7 @@ class USRP_UHD_i : public USRP_UHD_base
         std::string getStreamId(size_t tuner_id);
         double optimizeRate(const double& req_rate, const size_t tuner_id);
         double optimizeBandwidth(const double& req_bw, const size_t tuner_id);
+        void updateSriKeywords(BULKIO::StreamSRI *sri);
         void updateSriTimes(BULKIO::StreamSRI *sri, double timeUp, double timeDown, frontend::timeTypes timeType);
 
         // interface with usrp device
@@ -335,6 +337,19 @@ class USRP_UHD_i : public USRP_UHD_base
         uhd::device_addr_t usrp_device_addr;
 
         bool USRPTimeSynced;
+        struct SRIKEYWORDS {
+        	std::string pathDelay;
+        	std::string sbt;
+        	std::string feed;
+        	std::string mission;
+        	std::string antennaName;
+        	std::string receiver;
+        	std::string sysToaSigma;
+        	std::string sysFoaSigma;
+        	std::string feedLat;
+        	std::string feedLon;
+        	std::string feedAlt;
+        } sriKeywords;
 
     protected:
         void construct();
