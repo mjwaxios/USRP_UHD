@@ -314,18 +314,13 @@ int USRP_UHD_i::serviceFunctionGPS() {
         if (USRPTimeSynced) {   // Update Pos
           uhd::sensor_value_t gga_string = usrp_device_ptr->get_mboard_sensor("gps_gpgga");
           uhd::sensor_value_t rmc_string = usrp_device_ptr->get_mboard_sensor("gps_gprmc");
-          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % gga_string.value);
-          LOG_WARN(USRP_UHD_i, "NEMA " <<boost::format("%s") % rmc_string.value);
+          LOG_DEBUG(USRP_UHD_i, "NEMA " <<boost::format("%s") % gga_string.value);
+          LOG_DEBUG(USRP_UHD_i, "NEMA " <<boost::format("%s") % rmc_string.value);
 
           NMEA_PARSER nmeaParser(gga_string.value, rmc_string.value);
 
           frontend::GpsTimePos pos;
           pos.position.valid = true;
-          /*
-          pos.position.lat = 38.9819783;
-          pos.position.lon = -77.438543;
-          pos.position.alt = 90.5;
-          */
           pos.position.lat = nmeaParser.latitude;
           pos.position.lon = nmeaParser.longitude;
           pos.position.alt = nmeaParser.altitude;
@@ -343,18 +338,28 @@ int USRP_UHD_i::serviceFunctionGPS() {
           s.clear();
           s.str("");
 
-          LOG_WARN(USRP_UHD_i, "NEMA: Latitude: " <<boost::format("%s") % nmeaParser.latitude);
-          LOG_WARN(USRP_UHD_i, "NEMA: Longitude: " <<boost::format("%s") % nmeaParser.longitude);
-          LOG_WARN(USRP_UHD_i, "NEMA: Altitude: " <<boost::format("%s") % nmeaParser.altitude);
-          LOG_WARN(USRP_UHD_i, "NEMA: Date: " <<boost::format("%s") % nmeaParser.date);
-          LOG_WARN(USRP_UHD_i, "NEMA: UTC: " <<boost::format("%s") % nmeaParser.UTC);
-
+          LOG_DEBUG(USRP_UHD_i, "NEMA: Latitude: " <<boost::format("%s") % nmeaParser.latitude);
+          LOG_DEBUG(USRP_UHD_i, "NEMA: Longitude: " <<boost::format("%s") % nmeaParser.longitude);
+          LOG_DEBUG(USRP_UHD_i, "NEMA: Altitude: " <<boost::format("%s") % nmeaParser.altitude);
+          LOG_DEBUG(USRP_UHD_i, "NEMA: Date: " <<boost::format("%s") % nmeaParser.date);
+          LOG_DEBUG(USRP_UHD_i, "NEMA: UTC: " <<boost::format("%s") % nmeaParser.UTC);
+          
           GPS_out->gps_time_pos(pos);
         } else {   // Sync the Time
+          // Clear Position if we dont know it
+          frontend::GpsTimePos pos;
+          pos.position.valid = true;
+          pos.position.lat = 0;
+          pos.position.lon = 0;
+          pos.position.alt = 0;
+          GPS_out->gps_time_pos(pos);          
+
           LOG_TRACE(USRP_UHD_i,"Syncing USRP FPGA time With GPS");
           uhd::sensor_value_t reflocked = usrp_device_ptr->get_mboard_sensor("ref_locked");    
           if (!reflocked.to_bool()) {
-            LOG_ERROR(USRP_UHD_i, "10 MHz Reference Unlocked");            
+            LOG_ERROR(USRP_UHD_i, "internal 10 MHz Reference Unlocked");    
+            // if this happens, the USRP needs time to settle        
+            usleep(2000000); // Wait x Seconds, OK here as long as we are in a thread
             return NOOP;
           }
           uhd::sensor_value_t gpstime = usrp_device_ptr->get_mboard_sensor("gps_time");
@@ -371,13 +376,15 @@ int USRP_UHD_i::serviceFunctionGPS() {
           }
         }
       } else {  // Locked?
-        LOG_WARN(USRP_UHD_i, "GPSDO Unlocked");
+        if ((NumofLoops % 10) == 0) {
+          LOG_WARN(USRP_UHD_i, "GPSDO Unlocked");
+        }
         USRPTimeSynced = false;
       }
       // Ever so many loops send a GPSInfo
       if ((++NumofLoops % 10) == 0) {
         NumofLoops = 0;
-        LOG_WARN(USRP_UHD_i, "GPSINFO blah blah blah");
+        LOG_DEBUG(USRP_UHD_i, "GPSINFO blah blah blah");
         frontend::GPSInfo info;
         GPS_out->gps_info(info);
       }
@@ -942,8 +949,6 @@ void USRP_UHD_i::updateRfFlowId(const std::string &port_name){
         frontend_tuner_status[rfinfo->second.tuner_idx].rf_flow_id = rfinfo->second.rfinfo_pkt.rf_flow_id;
         usrp_tuners[rfinfo->second.tuner_idx].update_sri = true;
     }
-
-
 }
 
 void USRP_UHD_i::updateGroupId(const std::string &group){
@@ -1043,14 +1048,15 @@ void USRP_UHD_i::targetDeviceChanged(const target_device_struct& old_value, cons
     } else {
         LOG_DEBUG(USRP_UHD_i,"targetDeviceChanged|device was already started after initialization, not calling start again");
     }
-
 }
+
 void USRP_UHD_i::deviceRxGainChanged(float old_value, float new_value){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__ << "old_value=" << old_value << "  new_value=" << new_value);
     LOG_DEBUG(USRP_UHD_i,"deviceRxGainChanged|device_gain_global=" << device_rx_gain_global);
 
     updateDeviceRxGain(new_value);
 }
+
 void USRP_UHD_i::deviceTxGainChanged(float old_value, float new_value){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__ << "old_value=" << old_value << "  new_value=" << new_value);
     LOG_DEBUG(USRP_UHD_i,"deviceTxGainChanged|device_gain_global=" << device_tx_gain_global);
@@ -1201,22 +1207,39 @@ double USRP_UHD_i::optimizeBandwidth(const double& req_bw, const size_t tuner_id
 }
 
 void USRP_UHD_i::updateSriKeywords(BULKIO::StreamSRI *sri)	{
-	addModifyKeyword<std::string > (sri, "PATHDELAY", sriKeywords.pathDelay);
+	//addModifyKeyword<std::string > (sri, "PATHDELAY", sriKeywords.pathDelay);
 
-	addModifyKeyword<std::string > (sri, "PATH", "NONE");
-	addModifyKeyword<std::string > (sri, "ANTENNA", "NONE");
-	addModifyKeyword<std::string > (sri, "USE_SV_KEYWORDS", "1");
+	//addModifyKeyword<std::string > (sri, "PATH", "NONE");
+	//addModifyKeyword<std::string > (sri, "ANTENNA", "NONE");
+	//addModifyKeyword<std::string > (sri, "USE_SV_KEYWORDS", "1");
 
-	addModifyKeyword<std::string > (sri, "SBT", sriKeywords.sbt);
-	addModifyKeyword<std::string > (sri, "FEED", sriKeywords.feed);
-	addModifyKeyword<std::string > (sri, "MISSION", sriKeywords.mission);
-	addModifyKeyword<std::string > (sri, "ANTENNANAME", sriKeywords.antennaName);
-	addModifyKeyword<std::string > (sri, "RECEIVER", sriKeywords.receiver);
-	addModifyKeyword<std::string > (sri, "SYSTEM_TOA_SIGMA", sriKeywords.sysToaSigma);
-	addModifyKeyword<std::string > (sri, "SYSTEM_FOA_SIGMA", sriKeywords.sysFoaSigma);
-	addModifyKeyword<std::string > (sri, "FEED_LAT", sriKeywords.feedLat);
-	addModifyKeyword<std::string > (sri, "FEED_LON", sriKeywords.feedLon);
-	addModifyKeyword<std::string > (sri, "FEED_ALT", sriKeywords.feedAlt);
+	//addModifyKeyword<std::string > (sri, "SBT", sriKeywords.sbt);
+	//addModifyKeyword<std::string > (sri, "FEED", sriKeywords.feed);
+	//addModifyKeyword<std::string > (sri, "MISSION", sriKeywords.mission);
+	//addModifyKeyword<std::string > (sri, "ANTENNANAME", sriKeywords.antennaName);
+	//addModifyKeyword<std::string > (sri, "RECEIVER", sriKeywords.receiver);
+	//addModifyKeyword<std::string > (sri, "SYSTEM_TOA_SIGMA", sriKeywords.sysToaSigma);
+	//addModifyKeyword<std::string > (sri, "SYSTEM_FOA_SIGMA", sriKeywords.sysFoaSigma);
+  //addModifyKeyword<std::string > (sri, "FEED_LAT", sriKeywords.feedLat);
+	//addModifyKeyword<std::string > (sri, "FEED_LON", sriKeywords.feedLon);
+	//addModifyKeyword<std::string > (sri, "FEED_ALT", sriKeywords.feedAlt);
+
+  addModifyKeyword<std::string > (sri, "PATHDELAY", "0");
+  addModifyKeyword<std::string > (sri, "SBT", sriKeywords.sbt);
+
+  addModifyKeyword<std::string > (sri, "PATH", "NONE");
+  addModifyKeyword<std::string > (sri, "ANTENNA", "NONE");
+  addModifyKeyword<std::string > (sri, "USE_SV_KEYWORDS", "1");
+
+  addModifyKeyword<std::string > (sri, "FEED", "NONE");
+  addModifyKeyword<std::string > (sri, "MISSION", "ELEMENTAL");
+  addModifyKeyword<std::string > (sri, "ANTENNANAME", "RX2");
+  addModifyKeyword<std::string > (sri, "RECEIVER", "ELEMENTAL");
+  addModifyKeyword<std::string > (sri, "SYSTEM_TOA_SIGMA", "0.0000001");  // 1e-7 per MJW
+  addModifyKeyword<std::string > (sri, "SYSTEM_FOA_SIGMA", "0.00000003"); // 3e-8 per MJW
+  addModifyKeyword<std::string > (sri, "FEED_LAT", "38.9819783");
+  addModifyKeyword<std::string > (sri, "FEED_LON", "-77.438543");
+  addModifyKeyword<std::string > (sri, "FEED_ALT", "90.5");
 }
 
 void USRP_UHD_i::updateSriTimes(BULKIO::StreamSRI *sri, double timeUp, double timeDown, frontend::timeTypes timeType) {
@@ -1283,7 +1306,6 @@ void USRP_UHD_i::updateSriTimes(BULKIO::StreamSRI *sri, double timeUp, double ti
     TDOI.width(2);
     TDOI.fill('0');
     TDOI << gmt_down.tm_sec;
-
 
     addModifyKeyword<std::string > (sri, "DOIU", DOIU.str());
     addModifyKeyword<std::string > (sri, "TUOI", TUOI.str());
@@ -2002,6 +2024,7 @@ std::string USRP_UHD_i::get_rf_flow_id(const std::string& port_name){
         return "";
     }
 }
+
 void USRP_UHD_i::set_rf_flow_id(const std::string& port_name, const std::string& id){
     LOG_TRACE(USRP_UHD_i,__PRETTY_FUNCTION__ << " port_name=" << port_name << " id=" << id);
 
@@ -2016,6 +2039,7 @@ void USRP_UHD_i::set_rf_flow_id(const std::string& port_name, const std::string&
         LOG_WARN(USRP_UHD_i, "set_rf_flow_id|Unknown port name: " << port_name);
     }
 }
+
 frontend::RFInfoPkt USRP_UHD_i::get_rfinfo_pkt(const std::string& port_name){
     LOG_TRACE(USRP_UHD_i,__PRETTY_FUNCTION__ << " port_name=" << port_name);
 
@@ -2048,6 +2072,7 @@ frontend::RFInfoPkt USRP_UHD_i::get_rfinfo_pkt(const std::string& port_name){
     }
     return tmp;
 }
+
 void USRP_UHD_i::set_rfinfo_pkt(const std::string& port_name, const frontend::RFInfoPkt &pkt){
     LOG_TRACE(USRP_UHD_i,__PRETTY_FUNCTION__ << " port_name=" << port_name << " pkt.rf_flow_id=" << pkt.rf_flow_id);
 
@@ -2081,6 +2106,7 @@ void USRP_UHD_i::set_rfinfo_pkt(const std::string& port_name, const frontend::RF
         LOG_WARN(USRP_UHD_i, "set_rfinfo_pkt|Unknown port name: " << port_name);
     }
 }
+
 /*************************************************************
 Functions servicing the tuner control port
 *************************************************************/
@@ -2090,6 +2116,7 @@ std::string USRP_UHD_i::getTunerType(const std::string& allocation_id) {
     if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
     return frontend_tuner_status[idx].tuner_type;
 }
+
 bool USRP_UHD_i::getTunerDeviceControl(const std::string& allocation_id) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__ << " allocation_id=" << allocation_id);
     long idx = getTunerMapping(allocation_id);
@@ -2098,18 +2125,21 @@ bool USRP_UHD_i::getTunerDeviceControl(const std::string& allocation_id) {
         return true;
     return false;
 }
+
 std::string USRP_UHD_i::getTunerGroupId(const std::string& allocation_id) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__ << " allocation_id=" << allocation_id);
     long idx = getTunerMapping(allocation_id);
     if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
     return frontend_tuner_status[idx].group_id;
 }
+
 std::string USRP_UHD_i::getTunerRfFlowId(const std::string& allocation_id) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__ << " allocation_id=" << allocation_id);
     long idx = getTunerMapping(allocation_id);
     if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
     return frontend_tuner_status[idx].rf_flow_id;
 }
+
 void USRP_UHD_i::setTunerCenterFrequency(const std::string& allocation_id, double freq) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__ << " allocation_id=" << allocation_id << " freq=" << freq);
 
@@ -2122,7 +2152,6 @@ void USRP_UHD_i::setTunerCenterFrequency(const std::string& allocation_id, doubl
         throw FRONTEND::FrontendException(msg.str().c_str());
     }
     try {
-
         try {
             exclusive_lock lock(prop_lock);
 
@@ -2187,12 +2216,14 @@ void USRP_UHD_i::setTunerCenterFrequency(const std::string& allocation_id, doubl
     exclusive_lock lock(prop_lock);
     updateDeviceInfo();
 }
+
 double USRP_UHD_i::getTunerCenterFrequency(const std::string& allocation_id) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     long idx = getTunerMapping(allocation_id);
     if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
     return frontend_tuner_status[idx].center_frequency;
 }
+
 void USRP_UHD_i::setTunerBandwidth(const std::string& allocation_id, double bw) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
 
@@ -2264,42 +2295,50 @@ void USRP_UHD_i::setTunerBandwidth(const std::string& allocation_id, double bw) 
     exclusive_lock lock(prop_lock);
     updateDeviceInfo();
 }
+
 double USRP_UHD_i::getTunerBandwidth(const std::string& allocation_id) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     long idx = getTunerMapping(allocation_id);
     if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
     return frontend_tuner_status[idx].bandwidth;
 }
+
 void USRP_UHD_i::setTunerAgcEnable(const std::string& allocation_id, bool enable){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     throw FRONTEND::NotSupportedException("setTunerAgcEnable not supported");
 }
+
 bool USRP_UHD_i::getTunerAgcEnable(const std::string& allocation_id){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     throw FRONTEND::NotSupportedException("getTunerAgcEnable not supported");
 }
+
 void USRP_UHD_i::setTunerGain(const std::string& allocation_id, float gain){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     LOG_WARN(USRP_UHD_i,"setTunerGain|Gain setting is global for all tuners. Use device property interface instead.")
     throw FRONTEND::NotSupportedException("setTunerGain not supported for individual channels. Use device property interface instead.");
 }
+
 float USRP_UHD_i::getTunerGain(const std::string& allocation_id){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     long idx = getTunerMapping(allocation_id);
     if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
     return frontend_tuner_status[idx].gain;
 }
+
 void USRP_UHD_i::setTunerReferenceSource(const std::string& allocation_id, long source){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     LOG_WARN(USRP_UHD_i,"setTunerReferenceSource|Reference source setting is global for all tuners. Use device property interface instead.")
     throw FRONTEND::NotSupportedException("setTunerReferenceSource not supported for individual channels. Use device property interface instead.");
 }
+
 long USRP_UHD_i::getTunerReferenceSource(const std::string& allocation_id){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     long idx = getTunerMapping(allocation_id);
     if (idx < 0) throw FRONTEND::FrontendException("Invalid allocation id");
     return frontend_tuner_status[idx].reference_source;
 }
+
 void USRP_UHD_i::setTunerEnable(const std::string& allocation_id, bool enable) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
 
@@ -2318,6 +2357,7 @@ void USRP_UHD_i::setTunerEnable(const std::string& allocation_id, bool enable) {
     else
         usrpDisable(idx);
 }
+
 bool USRP_UHD_i::getTunerEnable(const std::string& allocation_id) {
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     long idx = getTunerMapping(allocation_id);
@@ -2398,6 +2438,7 @@ void USRP_UHD_i::setTunerOutputSampleRate(const std::string& allocation_id, doub
     exclusive_lock lock(prop_lock);
     updateDeviceInfo();
 }
+
 double USRP_UHD_i::getTunerOutputSampleRate(const std::string& allocation_id){
     LOG_DEBUG(USRP_UHD_i,__PRETTY_FUNCTION__);
     long idx = getTunerMapping(allocation_id);

@@ -132,16 +132,13 @@ void NMEA_PARSER::setValuesRMC(const std::string RMCSentence){
     this->speed             = stringToDouble(elementVector[7])* KNOTS_TO_MPS;
     this->heading           = stringToDouble(elementVector[8]);
     this->date              = atoi(elementVector[9].c_str());
-
-
 }
 
 /*-----Auxiliary functions-----*/
 
 // Input: coma separated string
 // Output: Vector with all the elements in input.
-std::vector<std::string> NMEA_PARSER::splitStringByComma(std::string input){
-
+std::vector<std::string> NMEA_PARSER::splitStringByComma(std::string input) {
 	std::vector<std::string>  returnVector;
 	std::stringstream    ss(input);
     std::string          element;
@@ -150,29 +147,30 @@ std::vector<std::string> NMEA_PARSER::splitStringByComma(std::string input){
         returnVector.push_back(element);
     }
 
-
     return returnVector;
 }
-double degreesToDecimal(int degrees, double minutes, int seconds )
-{
+
+double degreesToDecimal(int degrees, double minutes, int seconds ) {
     double returnDouble = 0;
     returnDouble = degrees + minutes/60 + seconds/3600.0f;
     return returnDouble;
 }
-double NMEA_PARSER::stringToDouble(std::string inputString){
+
+double NMEA_PARSER::stringToDouble(std::string inputString) {
     //If string empty, return 0.
     double returnValue = 0;
     std::istringstream istr(inputString);
     istr >> returnValue;
     return (returnValue);
-
 }
-std::string NMEA_PARSER::pad_zero(std::string input, int len){
+
+std::string NMEA_PARSER::pad_zero(std::string input, int len) {
     std::ostringstream oss;
     oss << std::setw(len) << std::setfill('0') << input;
     return oss.str();
 }
-double NMEA_PARSER::getCoordinates(std::string array){
+
+double NMEA_PARSER::getCoordinates(std::string array) {
     double decimalDegrees = 0;
     // Convert input array into two sub arrays containing the degrees and the minutes
     // Check for correct array length
@@ -183,6 +181,5 @@ double NMEA_PARSER::getCoordinates(std::string array){
     double minutes = (double)atof(minute.c_str());
     decimalDegrees = degreesToDecimal(degrees, minutes);
     return decimalDegrees;
-
 }
 
